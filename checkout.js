@@ -9,6 +9,22 @@ const fs = require('fs');
     throw new Error('Missing ODOO_USERNAME or ODOO_PASSWORD in GitHub Secrets');
   }
 
+  // ── انتظر حتى الساعة 4:12 مساءً بتوقيت الرياض بالضبط ──
+  const targetHour = 16;
+  const targetMinute = 12;
+
+  const now = new Date();
+  const riyadhHour = (now.getUTCHours() + 3) % 24;
+  const riyadhMinute = now.getUTCMinutes();
+
+  const waitMs = ((targetHour - riyadhHour) * 60 + (targetMinute - riyadhMinute)) * 60 * 1000;
+
+  if (waitMs > 0 && waitMs < 90 * 60 * 1000) {
+    console.log(`⏳ Waiting ${(waitMs / 60000).toFixed(1)} minutes until ${targetHour}:${String(targetMinute).padStart(2,'0')} Riyadh...`);
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+  }
+  console.log('🚀 Starting at exact time!');
+
   const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
