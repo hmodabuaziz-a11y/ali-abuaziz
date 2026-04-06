@@ -1,1 +1,83 @@
+name: Attendance Automation
 
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Which action to run'
+        required: true
+        default: 'checkin'
+        type: choice
+        options:
+          - checkin
+          - checkout
+
+  schedule:
+    # 7:38 صباحًا الرياض (UTC+3) = 04:38 UTC
+    - cron: '18 5 * * 0,1,2,3,4'
+
+    # 4:12 مساءً الرياض (UTC+3) = 13:12 UTC
+    - cron: '12 13 * * 0,1,2,3,4'
+
+jobs:
+  run-attendance:
+    runs-on: ubuntu-latest
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Show repository files
+        run: ls -la
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Determine script to run
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "SCRIPT=${{ github.event.inputs.action }}.js" >> $GITHUB_ENV
+          elif [ "$HOUR" = "13" ]; then
+            echo "SCRIPT=checkout.js" >> $GITHUB_ENV
+          else
+            echo "SCRIPT=checkin.js" >> $GITHUB_ENV
+          fi
+
+      - name: Show UTC time
+        run: echo "Current UTC time is $(date -u +%H:%M)"
+
+      - name: Show which script will run
+        run: echo "Running -> ${{ env.SCRIPT }}"
+
+      - name: Check secrets presence
+        run: |
+          if [ -z "${{ secrets.ODOO_USERNAME }}" ]; then echo "ODOO_USERNAME is missing"; else echo "ODOO_USERNAME is set"; fi
+          if [ -z "${{ secrets.ODOO_PASSWORD }}" ]; then echo "ODOO_PASSWORD is missing"; else echo "ODOO_PASSWORD is set"; fi
+
+      - name: Run script
+        run: node ${{ env.SCRIPT }}
+        env:
+          ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots-${{ github.run_id }}
+          path: |
+            screenshot_*.png
+            page_*.html
+          retention-days: 7
