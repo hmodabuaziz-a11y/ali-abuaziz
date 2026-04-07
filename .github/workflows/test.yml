@@ -13,18 +13,14 @@ on:
           - checkout
 
   schedule:
-    # نشغّل ساعة أبكر = 7:18 الرياض = 04:18 UTC
-    # السكربت ينتظر داخلياً حتى 8:18 بالضبط
+    # حضور: يبدأ 7:18 ص الرياض (04:18 UTC) وينتظر حتى 8:18 ص
     - cron: '18 4 * * 0,1,2,3,4'
-
-    # نشغّل ساعة أبكر = 3:12 الرياض = 12:12 UTC
-    # السكربت ينتظر داخلياً حتى 4:12 بالضبط
+    # انصراف: يبدأ 3:12 م الرياض (12:12 UTC) وينتظر حتى 4:12 م
     - cron: '12 12 * * 0,1,2,3,4'
 
 jobs:
   run-attendance:
     runs-on: ubuntu-latest
-
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -48,14 +44,15 @@ jobs:
           HOUR=$(date -u +%H)
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "SCRIPT=${{ github.event.inputs.action }}.js" >> $GITHUB_ENV
-          elif [ "$HOUR" = "12" ]; then
+          # إذا كانت الساعة بين 12 و 15 UTC (وقت الانصراف بالرياض)، اختر checkout.js
+          elif [ "$HOUR" -ge 12 ] && [ "$HOUR" -le 15 ]; then
             echo "SCRIPT=checkout.js" >> $GITHUB_ENV
           else
             echo "SCRIPT=checkin.js" >> $GITHUB_ENV
           fi
 
       - name: Show UTC time
-        run: echo "Current UTC time is $(date -u +%H:%M)"
+        run: echo "Current UTC hour is $HOUR"
 
       - name: Show which script will run
         run: echo "Running -> ${{ env.SCRIPT }}"
