@@ -10,8 +10,8 @@ const fs = require('fs');
   }
 
   // ── انتظر حتى الساعة 8:18 صباحاً بتوقيت الرياض بالضبط ──
-  const targetHour = 8;
-  const targetMinute = 18;
+  const targetHour = 7;
+  const targetMinute = 22;
 
   const now = new Date();
   const riyadhHour = (now.getUTCHours() + 3) % 24;
