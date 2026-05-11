@@ -11,7 +11,7 @@ const fs = require('fs');
 
   // ── انتظر حتى الساعة 4:12 مساءً بتوقيت الرياض بالضبط ──
   const targetHour = 17;
-  const targetMinute = 12;
+  const targetMinute = 33;
 
   const now = new Date();
   const riyadhHour = (now.getUTCHours() + 3) % 24;
