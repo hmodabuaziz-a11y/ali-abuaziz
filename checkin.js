@@ -9,7 +9,7 @@ const fs = require('fs');
     throw new Error('Missing ODOO_USERNAME or ODOO_PASSWORD in GitHub Secrets');
   }
 
-  // ── انتظر حتى الساعة 8:18 صباحاً بتوقيت الرياض بالضبط ──
+  // ── انتظر حتى الساعة 8:11 صباحاً بتوقيت الرياض بالضبط ──
   const targetHour = 8;
   const targetMinute = 11;
 
@@ -82,6 +82,25 @@ const fs = require('fs');
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'screenshot_04_dropdown.png', fullPage: true });
 
+    // ── تحقق: هل هو already checked in؟ (يعني زر Check-Out ظاهر) ──
+    console.log('🔍 Checking current attendance state...');
+    const alreadyCheckedIn = await page.locator([
+      'button.btn-warning:has-text("تسجيل الخروج")',
+      'button.btn-warning:has-text("Check Out")',
+      'button:has-text("تسجيل الخروج")',
+      '.o-dropdown--menu button.btn-warning',
+      '.dropdown-menu button.btn-warning',
+    ].join(',')).first().isVisible().catch(() => false);
+
+    if (alreadyCheckedIn) {
+      console.log('⚠️ Already checked in — skipping to avoid duplicate session!');
+      await page.screenshot({ path: 'screenshot_05_final.png', fullPage: true });
+      await browser.close();
+      console.log('✅ Done (no action needed).');
+      process.exit(0);
+    }
+
+    // ── سجّل الحضور ──
     console.log('🔍 Looking for Check-In button...');
     const checkinSelectors = [
       'button.btn-success:has-text("تسجيل الحضور")',
