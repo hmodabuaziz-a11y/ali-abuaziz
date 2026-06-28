@@ -1,5 +1,4 @@
 name: Attendance Automation
-
 on:
   workflow_dispatch:
     inputs:
@@ -11,58 +10,49 @@ on:
         options:
           - checkin
           - checkout
-
   schedule:
     # حضور: يبدأ 7:18 ص الرياض (04:11 UTC) وينتظر حتى 8:11 ص
     - cron: '18 4 * * 0,1,2,3,4'
     # انصراف: يبدأ 3:12 م الرياض (13:33 UTC) وينتظر حتى 5:33 م
     - cron: '12 12 * * 0,1,2,3,4'
-
 jobs:
   run-attendance:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Install dependencies
         run: npm install
-
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
-
       - name: Determine script to run
+        id: determine
         run: |
-          HOUR=$(date -u +%H)
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "SCRIPT=${{ github.event.inputs.action }}.js" >> $GITHUB_ENV
-          # إذا كانت الساعة بين 12 و 15 UTC (وقت الانصراف بالرياض)، اختر checkout.js
-          elif [ "$HOUR" -ge 12 ] && [ "$HOUR" -le 15 ]; then
-            echo "SCRIPT=checkout.js" >> $GITHUB_ENV
+            SCRIPT="${{ github.event.inputs.action }}.js"
           else
-            echo "SCRIPT=checkin.js" >> $GITHUB_ENV
+            HOUR=$(date -u +%H)
+            echo "Current UTC hour is $HOUR"
+            # إذا كانت الساعة بين 12 و 15 UTC (وقت الانصراف بالرياض)، اختر checkout.js
+            if [ "$HOUR" -ge 12 ] && [ "$HOUR" -le 15 ]; then
+              SCRIPT="checkout.js"
+            else
+              SCRIPT="checkin.js"
+            fi
           fi
-
-      - name: Show UTC time
-        run: echo "Current UTC hour is $HOUR"
-
-      - name: Show which script will run
-        run: echo "Running -> ${{ env.SCRIPT }}"
-
+          echo "SCRIPT=$SCRIPT" >> "$GITHUB_ENV"
+          echo "Running -> $SCRIPT"
       - name: Run script
         run: node ${{ env.SCRIPT }}
         env:
           ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
           ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
-
       - name: Upload debug artifacts
         if: always()
         uses: actions/upload-artifact@v4
