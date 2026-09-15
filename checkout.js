@@ -2,146 +2,194 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 
 (async () => {
-  const username = process.env.ODOO_USERNAME;
-  const password = process.env.ODOO_PASSWORD;
-
-  if (!username || !password) {
-    throw new Error('Missing ODOO_USERNAME or ODOO_PASSWORD in GitHub Secrets');
-  }
-
-  // ── انتظر حتى الساعة 5:33 مساءً بتوقيت الرياض بالضبط ──
-  const targetHour = 17;
-  const targetMinute = 33;
-
-  const now = new Date();
-  const riyadhHour = (now.getUTCHours() + 3) % 24;
-  const riyadhMinute = now.getUTCMinutes();
-
-  const waitMs = ((targetHour - riyadhHour) * 60 + (targetMinute - riyadhMinute)) * 60 * 1000;
-
-  if (waitMs > 0 && waitMs < 90 * 60 * 1000) {
-    console.log(`⏳ Waiting ${(waitMs / 60000).toFixed(1)} minutes until ${targetHour}:${String(targetMinute).padStart(2,'0')} Riyadh...`);
-    await new Promise(resolve => setTimeout(resolve, waitMs));
-  }
-  console.log('🚀 Starting at exact time!');
-
   const browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage'
+    ]
   });
 
-  const page = await browser.newPage();
-
-  page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
-  page.on('pageerror', err => console.error('PAGE ERROR:', err.message));
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
   try {
-    console.log('🔗 Navigating to login page...');
-    await page.goto('https://admin.maqam-group.com/ar/web/login', {
-      waitUntil: 'domcontentloaded',
+    console.log("Starting browser in CI mode...");
+
+    // =========================
+    // GET LOGIN CREDENTIALS
+    // =========================
+
+    const username = process.env.USERNAME;
+    const password = process.env.PASSWORD;
+
+    if (!username || !password) {
+      throw new Error(
+        "Missing USERNAME or PASSWORD in GitHub Secrets"
+      );
+    }
+
+    // =========================
+    // LOGIN
+    // =========================
+
+    console.log("Opening login page...");
+
+    await page.goto(
+      'https://admin.maqam-group.com/web/login',
+      {
+        waitUntil: 'domcontentloaded',
+        timeout: 60000
+      }
+    );
+
+    console.log("Filling login credentials...");
+
+    await page.fill('#login', username);
+    await page.fill('#password', password);
+
+    console.log("Clicking submit button...");
+
+    await page.click('button[type="submit"]');
+
+    await page.waitForURL('**/web**', {
       timeout: 60000
     });
 
-    await page.screenshot({ path: 'screenshot_01_login_page.png', fullPage: true });
+    console.log("Login successful.");
 
-    await page.locator('#login').clear();
-    await page.locator('#login').pressSequentially(username, { delay: 50 });
-    await page.locator('#password').clear();
-    await page.locator('#password').pressSequentially(password, { delay: 50 });
-    await page.waitForTimeout(500);
+    await page
+      .waitForLoadState('networkidle', {
+        timeout: 60000
+      })
+      .catch(() => {
+        console.log(
+          "Network didn't fully idle, continuing anyway..."
+        );
+      });
 
-    console.log('✅ Credentials filled. Clicking submit...');
-    await page.click('button[type="submit"]');
+    // =========================
+    // FIND ATTENDANCE BUTTON
+    // =========================
 
-    await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {
-      console.warn('⚠️ networkidle timed out — continuing anyway');
+    console.log("Waiting for attendance button...");
+
+    const attendanceButton =
+      page.locator('button.tt_punch');
+
+    await attendanceButton.waitFor({
+      state: 'visible',
+      timeout: 30000
     });
 
-    console.log('📍 URL after submit:', page.url());
-    await page.screenshot({ path: 'screenshot_02_after_login.png', fullPage: true });
+    const buttonText = (
+      await attendanceButton.innerText()
+    )
+      .trim()
+      .toLowerCase();
 
-    const loginError = await page.locator('.o_login_error, .alert-danger, [name="error"]').first().isVisible().catch(() => false);
-    if (loginError) {
-      const errText = await page.locator('.o_login_error, .alert-danger, [name="error"]').first().textContent().catch(() => '');
-      console.error('❌ Login error:', errText.trim());
-      throw new Error('Login failed — check credentials');
+    console.log(
+      "Attendance button found:",
+      buttonText
+    );
+
+    // =========================
+    // DETECT BUTTON STATE
+    // Arabic + English
+    // =========================
+
+    const isCheckIn =
+      buttonText.includes('check in') ||
+      buttonText.includes('تسجيل الحضور');
+
+    const isCheckOut =
+      buttonText.includes('check out') ||
+      buttonText.includes('تسجيل الانصراف');
+
+    // =========================
+    // CHECK IN
+    // =========================
+
+    if (isCheckIn) {
+      console.log("Check-in button detected.");
+
+      console.log("Clicking Check in...");
+
+      await attendanceButton.click();
+
+      await page.waitForTimeout(3000);
+
+      console.log(
+        "Check-in completed successfully! ✅"
+      );
     }
 
-    console.log('⏳ Waiting for dashboard...');
-    await page.locator('.o_main_navbar, .o_home_menu, nav.navbar, #wrapwrap').first()
-      .waitFor({ state: 'visible', timeout: 30000 });
-    console.log('✅ Dashboard loaded');
-    await page.screenshot({ path: 'screenshot_03_dashboard.png', fullPage: true });
-
-    console.log('🔍 Clicking Attendance button in systray...');
-    const attendanceBtn = page.locator('.o_menu_systray i[aria-label="Attendance"]').locator('..');
-    await attendanceBtn.waitFor({ state: 'visible', timeout: 15000 });
-    await attendanceBtn.click({ force: true });
-    console.log('✅ Clicked Attendance systray button');
-
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: 'screenshot_04_dropdown.png', fullPage: true });
-
-    // ── تحقق: هل هو already checked out؟ (يعني زر Check-In ظاهر) ──
-    console.log('🔍 Checking current attendance state...');
-    const alreadyCheckedOut = await page.locator([
-      'button.btn-success:has-text("تسجيل الحضور")',
-      'button.btn-success:has-text("Check In")',
-      'button:has-text("تسجيل الحضور")',
-      '.o-dropdown--menu button.btn-success',
-      '.dropdown-menu button.btn-success',
-    ].join(',')).first().isVisible().catch(() => false);
-
-    if (alreadyCheckedOut) {
-      console.log('⚠️ Already checked out — skipping to avoid duplicate session!');
-      await page.screenshot({ path: 'screenshot_05_final.png', fullPage: true });
-      await browser.close();
-      console.log('✅ Done (no action needed).');
-      process.exit(0);
+    // Already checked in
+    else if (isCheckOut) {
+      console.log(
+        "Already checked in — nothing to do. ✅"
+      );
     }
 
-    // ── سجّل الخروج ──
-    console.log('🔍 Looking for Check-Out button...');
-    const checkoutSelectors = [
-      'button.btn-warning:has-text("تسجيل الخروج")',
-      'button.btn-warning:has-text("Check Out")',
-      'button:has-text("تسجيل الخروج")',
-      'button:has-text("Check Out")',
-      '.o-dropdown--menu button.btn-warning',
-      '.dropdown-menu button.btn-warning',
-      'button.btn-warning',
-    ];
-
-    let checkedOut = false;
-    for (const sel of checkoutSelectors) {
-      const el = page.locator(sel).first();
-      const visible = await el.isVisible().catch(() => false);
-      if (visible) {
-        console.log(`✅ Found Check-Out button: ${sel}`);
-        await el.click({ force: true });
-        checkedOut = true;
-        break;
-      }
+    // Unknown state
+    else {
+      throw new Error(
+        `Unknown attendance button state: "${buttonText}"`
+      );
     }
 
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: 'screenshot_05_final.png', fullPage: true });
+    // =========================
+    // CLOSE
+    // =========================
 
-    if (checkedOut) {
-      console.log('🎉 Check-out successful!');
-    } else {
-      console.warn('⚠️ Check-out button not found');
-      fs.writeFileSync('page_checkout_debug.html', await page.content());
-    }
-
-  } catch (err) {
-    console.error('💥 Error:', err.message);
-    await page.screenshot({ path: 'screenshot_error.png', fullPage: true }).catch(() => {});
-    fs.writeFileSync('page_error.html', await page.content().catch(() => ''));
     await browser.close();
+
+    process.exit(0);
+
+  } catch (error) {
+
+    // =========================
+    // ERROR HANDLING
+    // =========================
+
+    console.error(
+      "ERROR:",
+      error.message
+    );
+
+    console.error(
+      "Stack:",
+      error.stack
+    );
+
+    try {
+      await page.screenshot({
+        path: 'screenshot_checkin_error.png',
+        fullPage: true
+      });
+
+      const html = await page.content();
+
+      fs.writeFileSync(
+        'page_checkin_error.html',
+        html
+      );
+
+      console.log(
+        "Saved debug screenshot and HTML."
+      );
+
+    } catch (debugError) {
+
+      console.error(
+        "Could not save debug files:",
+        debugError.message
+      );
+    }
+
+    await browser.close();
+
     process.exit(1);
   }
-
-  await browser.close();
-  console.log('✅ Done.');
 })();
