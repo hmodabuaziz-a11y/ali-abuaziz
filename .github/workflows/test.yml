@@ -51,8 +51,8 @@ jobs:
       - name: Run script
         run: node ${{ env.SCRIPT }}
         env:
-          ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
-          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+          USERNAME: ${{ secrets.ODOO_USERNAME }}
+          PASSWORD: ${{ secrets.ODOO_PASSWORD }}
       - name: Upload debug artifacts
         if: always()
         uses: actions/upload-artifact@v4
