@@ -59,6 +59,10 @@ const fs = require('fs');
 
     console.log("Login successful.");
 
+    // =========================
+    // WAIT FOR PAGE
+    // =========================
+
     await page
       .waitForLoadState('networkidle', {
         timeout: 60000
@@ -83,6 +87,10 @@ const fs = require('fs');
       timeout: 30000
     });
 
+    // =========================
+    // READ BUTTON TEXT
+    // =========================
+
     const buttonText = (
       await attendanceButton.innerText()
     )
@@ -95,62 +103,89 @@ const fs = require('fs');
     );
 
     // =========================
-    // DETECT BUTTON STATE
-    // Arabic + English
+    // DETECT CHECK-IN
     // =========================
 
     const isCheckIn =
       buttonText.includes('check in') ||
       buttonText.includes('تسجيل الحضور');
 
+    // =========================
+    // DETECT CHECK-OUT
+    // =========================
+
     const isCheckOut =
       buttonText.includes('check out') ||
+      buttonText.includes('تسجيل الخروج') ||
       buttonText.includes('تسجيل الانصراف');
 
     // =========================
-    // CHECK IN
+    // CHECK OUT
     // =========================
 
-    if (isCheckIn) {
-      console.log("Check-in button detected.");
+    if (isCheckOut) {
 
-      console.log("Clicking Check in...");
+      console.log(
+        "Check-out button detected."
+      );
+
+      console.log(
+        "Clicking Check out..."
+      );
 
       await attendanceButton.click();
 
+      // Wait for website to process
       await page.waitForTimeout(3000);
 
       console.log(
-        "Check-in completed successfully! ✅"
+        "Check-out completed successfully! ✅"
       );
+
     }
 
-    // Already checked in
-    else if (isCheckOut) {
+    // =========================
+    // ALREADY CHECKED OUT
+    // =========================
+
+    else if (isCheckIn) {
+
       console.log(
-        "Already checked in — nothing to do. ✅"
+        "Already checked out — nothing to do. ✅"
       );
+
     }
 
-    // Unknown state
+    // =========================
+    // UNKNOWN BUTTON
+    // =========================
+
     else {
+
       throw new Error(
         `Unknown attendance button state: "${buttonText}"`
       );
+
     }
 
     // =========================
-    // CLOSE
+    // FINISH
     // =========================
 
+    console.log("Closing browser...");
+
     await browser.close();
+
+    console.log(
+      "Checkout script finished successfully."
+    );
 
     process.exit(0);
 
   } catch (error) {
 
     // =========================
-    // ERROR HANDLING
+    // ERROR
     // =========================
 
     console.error(
@@ -163,16 +198,22 @@ const fs = require('fs');
       error.stack
     );
 
+    // =========================
+    // SAVE DEBUG FILES
+    // =========================
+
     try {
+
       await page.screenshot({
-        path: 'screenshot_checkin_error.png',
+        path: 'screenshot_checkout_error.png',
         fullPage: true
       });
 
-      const html = await page.content();
+      const html =
+        await page.content();
 
       fs.writeFileSync(
-        'page_checkin_error.html',
+        'page_checkout_error.html',
         html
       );
 
@@ -186,7 +227,12 @@ const fs = require('fs');
         "Could not save debug files:",
         debugError.message
       );
+
     }
+
+    // =========================
+    // CLOSE AFTER ERROR
+    // =========================
 
     await browser.close();
 
