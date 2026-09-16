@@ -94,24 +94,24 @@ const fs = require('fs');
       buttonText.includes('تسجيل الخروج') ||
       buttonText.includes('تسجيل الانصراف');
 
-    // CHECK OUT
-    if (isCheckOut) {
+    // CHECK IN
+    if (isCheckIn) {
 
-      console.log("Check-out button detected.");
-      console.log("Clicking Check out...");
+      console.log("Check-in button detected.");
+      console.log("Clicking Check in...");
 
       await attendanceButton.click();
 
       await page.waitForTimeout(3000);
 
       console.log(
-        "Check-out completed successfully! ✅"
+        "Check-in completed successfully! ✅"
       );
 
-    } else if (isCheckIn) {
+    } else if (isCheckOut) {
 
       console.log(
-        "Already checked out — nothing to do. ✅"
+        "Already checked in — nothing to do. ✅"
       );
 
     } else {
@@ -126,7 +126,7 @@ const fs = require('fs');
     await browser.close();
 
     console.log(
-      "Check-out script finished successfully. ✅"
+      "Check-in script finished successfully. ✅"
     );
 
     process.exit(0);
@@ -139,14 +139,14 @@ const fs = require('fs');
     try {
 
       await page.screenshot({
-        path: 'screenshot_checkout_error.png',
+        path: 'screenshot_checkin_error.png',
         fullPage: true
       });
 
       const html = await page.content();
 
       fs.writeFileSync(
-        'page_checkout_error.html',
+        'page_checkin_error.html',
         html
       );
 
